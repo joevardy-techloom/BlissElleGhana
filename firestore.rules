@@ -1,0 +1,226 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Default Catch-All Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'abubakarsadikmusah2004@gmail.com'
+        || request.auth.token.email == 'jenatubashiru4@gmail.com'
+        || request.auth.token.email == 'jannahblisselle@gmail.com'
+        || request.auth.token.email == 'secondadmin@gmail.com'
+        || exists(/databases/$(database)/documents/admins/$(request.auth.token.email))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Helper to validate email addresses format
+    function isEmailFormat(email) {
+      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    // 2. Collection Validation Helper
+    function isValidCollection(data) {
+      return data.keys().hasAll(['id', 'name'])
+        && data.id is string && data.id.size() <= 64 
+        && data.name is string && data.name.size() <= 128
+        && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 200))
+        && (!('tagline' in data) || (data.tagline is string && data.tagline.size() <= 256))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 1000))
+        && (!('gradientFrom' in data) || (data.gradientFrom is string && data.gradientFrom.size() <= 128))
+        && (!('gradientTo' in data) || (data.gradientTo is string && data.gradientTo.size() <= 128));
+    }
+
+    // 3. Hotspot (Product) Validation Helper
+    function isValidHotspot(data) {
+      return data.keys().hasAll(['id', 'name', 'price'])
+        && data.id is string && data.id.size() <= 64
+        && data.name is string && data.name.size() <= 128
+        && data.price is string && data.price.size() <= 32
+        && (!('category' in data) || (data.category is string && data.category.size() <= 128))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 1000))
+        && (!('x' in data) || (data.x is string && data.x.size() <= 16))
+        && (!('y' in data) || (data.y is string && data.y.size() <= 16))
+        && (!('tag' in data) || (data.tag is string && data.tag.size() <= 64));
+    }
+
+    // 4. Order Validation Helper (Anti-Update-Gap & Identity Guard)
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'email', 'count', 'total', 'status', 'items', 'createdAt', 'updatedAt'])
+        && data.userId is string && data.userId.size() <= 128 && data.userId == request.auth.uid
+        && data.email is string && data.email.size() <= 128 && isEmailFormat(data.email)
+        && data.count is int && data.count >= 0
+        && data.total is number && data.total >= 0.0
+        && data.status is string && data.status.size() <= 32 && (data.status == 'pending' || data.status == 'completed' || data.status == 'cancelled' || data.status == 'assigned' || data.status == 'shipped' || data.status == 'submitted' || data.status == 'received' || data.status == 'recived' || data.status == 'packaged' || data.status == 'delivered')
+        && data.items is list
+        && data.items.size() <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // 5. Newsletter Validation Helper
+    function isValidNewsletter(data) {
+      return data.keys().hasAll(['email', 'createdAt'])
+        && data.email is string && data.email.size() <= 128 && isEmailFormat(data.email)
+        && data.createdAt is timestamp;
+    }
+
+    // 6. Wishlist Validation Helper (Identity & Integrity Guard)
+    function isValidWishlist(data) {
+      return data.keys().hasAll(['userId', 'items', 'updatedAt'])
+        && data.userId is string && data.userId.size() <= 128 && data.userId == request.auth.uid
+        && data.items is list
+        && data.items.size() <= 150
+        && (data.items.size() == 0 || data.items[0] is string)
+        && data.updatedAt is timestamp;
+    }
+
+    // 7. Profile Validation Helper
+    function isValidProfile(data) {
+      return data.keys().hasAll(['username', 'phone', 'location', 'updatedAt'])
+        && data.username is string && data.username.size() <= 128
+        && data.phone is string && data.phone.size() <= 64
+        && data.location is string && data.location.size() <= 512
+        && data.updatedAt is timestamp
+        && (!('email' in data) || (data.email is string && data.email.size() <= 128))
+        && (!('createdAt' in data) || (data.createdAt is timestamp));
+    }
+
+    // 8. WhatsApp Log Validation Helper (Identity & Integrity Guard)
+    function isValidWhatsAppLog(data) {
+      return data.keys().hasAll(['userId', 'message', 'type', 'items', 'total', 'createdAt'])
+        && data.userId is string && data.userId.size() <= 128 && data.userId == request.auth.uid
+        && data.message is string && data.message.size() <= 5000
+        && data.type is string && data.type.size() <= 128
+        && data.items is list
+        && data.items.size() <= 100
+        && (data.total is number || data.total is string)
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collections Routing Rules ---
+
+    match /collections/{collectionId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(collectionId) && isValidCollection(incoming());
+      allow update: if isAdmin() && isValidId(collectionId) && isValidCollection(incoming());
+      allow delete: if isAdmin() && isValidId(collectionId);
+    }
+
+    match /hotspots/{hotspotId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && isValidId(orderId) 
+        && isValidOrder(incoming()) 
+        && incoming().createdAt == request.time 
+        && incoming().updatedAt == request.time;
+      
+      allow update: if isSignedIn() && isValidId(orderId) && isValidOrder(incoming()) && (
+        // Shopper modification restricted to their own entries
+        (existing().userId == request.auth.uid 
+          && incoming().userId == existing().userId 
+          && incoming().createdAt == existing().createdAt 
+          && incoming().updatedAt == request.time 
+          && incoming().diff(existing()).affectedKeys().hasOnly(['items', 'count', 'total', 'updatedAt']))
+        // Admin modification restricted to changing statuses
+        || (isAdmin() 
+          && incoming().createdAt == existing().createdAt 
+          && incoming().updatedAt == request.time 
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
+      
+      allow delete: if isSignedIn() && isValidId(orderId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    match /users/{userId}/orders/{orderId} {
+      allow get: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidId(orderId) 
+        && isValidOrder(incoming()) 
+        && incoming().createdAt == request.time 
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && userId == request.auth.uid && isValidId(orderId) && isValidOrder(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['items', 'count', 'total', 'updatedAt'])
+      ) || isAdmin();
+      allow delete: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+    }
+
+    match /admin/dashboard/orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(orderId) 
+        && isValidOrder(incoming()) 
+        && incoming().createdAt == request.time 
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /newsletter/{subscriberId} {
+      // Admin list / review subscribers
+      allow read: if isAdmin();
+      // Public subscription write
+      allow create: if isValidId(subscriberId) && isValidNewsletter(incoming()) && incoming().createdAt == request.time;
+      allow update, delete: if isAdmin() && isValidId(subscriberId);
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /wishlists/{userId} {
+      allow read: if isSignedIn() && userId == request.auth.uid;
+      allow create, update: if isSignedIn() && userId == request.auth.uid && isValidWishlist(incoming());
+      allow delete: if isSignedIn() && userId == request.auth.uid;
+    }
+
+    match /profiles/{userId} {
+      allow read: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn() && (
+        (userId == request.auth.uid && isValidProfile(incoming()))
+        || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /whatsapp_logs/{logId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidWhatsAppLog(incoming()) && incoming().createdAt == request.time;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && (request.auth.token.email == adminId || isAdmin());
+      allow list, write: if isAdmin();
+    }
+
+    match /admin_login_history/{historyId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
