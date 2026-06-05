@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Default Catch-All Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'abubakarsadikmusah2004@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Helper to validate email addresses format
+    function isEmailFormat(email) {
+      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    // 2. Collection Validation Helper
+    function isValidCollection(data) {
+      return data.keys().hasAll(['id', 'name'])
+        && data.id is string && data.id.size() <= 64 
+        && data.name is string && data.name.size() <= 128
+        && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 200))
+        && (!('tagline' in data) || (data.tagline is string && data.tagline.size() <= 256))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 1000))
+        && (!('gradientFrom' in data) || (data.gradientFrom is string && data.gradientFrom.size() <= 128))
+        && (!('gradientTo' in data) || (data.gradientTo is string && data.gradientTo.size() <= 128));
+    }
+
+    // 3. Hotspot (Product) Validation Helper
+    function isValidHotspot(data) {
+      return data.keys().hasAll(['id', 'name', 'price'])
+        && data.id is string && data.id.size() <= 64
+        && data.name is string && data.name.size() <= 128
+        && data.price is string && data.price.size() <= 32
+        && (!('category' in data) || (data.category is string && data.category.size() <= 128))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 1000))
+        && (!('x' in data) || (data.x is string && data.x.size() <= 16))
+        && (!('y' in data) || (data.y is string && data.y.size() <= 16))
+        && (!('tag' in data) || (data.tag is string && data.tag.size() <= 64));
+    }
+
+    // 4. Order Validation Helper (Anti-Update-Gap & Identity Guard)
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'email', 'count', 'total', 'status', 'items', 'createdAt', 'updatedAt'])
+        && data.userId is string && data.userId.size() <= 128 && data.userId == request.auth.uid
+        && data.email is string && data.email.size() <= 128 && isEmailFormat(data.email)
+        && data.count is int && data.count >= 0
+        && data.total is number && data.total >= 0.0
+        && data.status is string && data.status.size() <= 32 && (data.status == 'pending' || data.status == 'completed' || data.status == 'cancelled')
+        && data.items is list
+        && data.items.size() <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // 5. Newsletter Validation Helper
+    function isValidNewsletter(data) {
+      return data.keys().hasAll(['email', 'createdAt'])
+        && data.email is string && data.email.size() <= 128 && isEmailFormat(data.email)
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collections Routing Rules ---
+
+    match /collections/{collectionId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(collectionId) && isValidCollection(incoming());
+      allow update: if isAdmin() && isValidId(collectionId) && isValidCollection(incoming());
+      allow delete: if isAdmin() && isValidId(collectionId);
+    }
+
+    match /hotspots/{hotspotId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(hotspotId) && isValidHotspot(incoming());
+      allow update: if isAdmin() && isValidId(hotspotId) && isValidHotspot(incoming());
+      allow delete: if isAdmin() && isValidId(hotspotId);
+    }
+
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && isValidId(orderId) 
+        && isValidOrder(incoming()) 
+        && incoming().createdAt == request.time 
+        && incoming().updatedAt == request.time;
+      
+      allow update: if isSignedIn() && isValidId(orderId) && isValidOrder(incoming()) && (
+        // Shopper modification restricted to their own entries
+        (existing().userId == request.auth.uid 
+          && incoming().userId == existing().userId 
+          && incoming().createdAt == existing().createdAt 
+          && incoming().updatedAt == request.time 
+          && incoming().diff(existing()).affectedKeys().hasOnly(['items', 'count', 'total', 'updatedAt']))
+        // Admin modification restricted to changing statuses
+        || (isAdmin() 
+          && incoming().createdAt == existing().createdAt 
+          && incoming().updatedAt == request.time 
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
+      
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    match /newsletter/{subscriberId} {
+      // Admin list / review subscribers
+      allow read: if isAdmin();
+      // Public subscription write
+      allow create: if isValidId(subscriberId) && isValidNewsletter(incoming()) && incoming().createdAt == request.time;
+      allow update, delete: if isAdmin() && isValidId(subscriberId);
+    }
+  }
+}

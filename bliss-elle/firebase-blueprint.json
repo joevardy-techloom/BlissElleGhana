@@ -1,0 +1,204 @@
+{
+  "entities": {
+    "Collection": {
+      "title": "Collection",
+      "description": "Premium luxury fashion collections",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "tagline": { "type": "string" },
+        "description": { "type": "string" },
+        "gradientFrom": { "type": "string" },
+        "gradientTo": { "type": "string" },
+        "stats": {
+          "type": "object"
+        }
+      },
+      "required": ["id", "name"]
+    },
+    "Hotspot": {
+      "title": "Hotspot",
+      "description": "Bespoke luxury items showcased with hotspots",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "string" },
+        "description": { "type": "string" },
+        "x": { "type": "string" },
+        "y": { "type": "string" },
+        "tag": { "type": "string" }
+      },
+      "required": ["id", "name", "price"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Bespoke fitting and checkout order requests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "count": { "type": "integer" },
+        "total": { "type": "number" },
+        "status": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "category": { "type": "string" },
+              "price": { "type": "string" },
+              "imageUrl": { "type": "string" }
+            },
+            "required": ["id", "name", "price"]
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "count", "total", "status", "createdAt", "updatedAt"]
+    },
+    "Newsletter": {
+      "title": "Newsletter",
+      "description": "Newsletter subscriptions for exclusive access",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Adaptive global app settings and dynamic wallpaper overrides",
+      "type": "object",
+      "properties": {
+        "landscapeUrl": { "type": "string" },
+        "landscapeType": { "type": "string" },
+        "portraitUrl": { "type": "string" },
+        "portraitType": { "type": "string" }
+      }
+    },
+    "Wishlist": {
+      "title": "Wishlist",
+      "description": "Premium customer wishlist containing saved items",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "items", "updatedAt"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "User specific custom details, delivery/sizing preferences",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "username": { "type": "string" },
+        "phone": { "type": "string" },
+        "location": { "type": "string" },
+        "orderHistory": { "type": "array" },
+        "ordersList": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "phone", "location", "updatedAt"]
+    },
+    "WhatsAppLog": {
+      "title": "WhatsAppLog",
+      "description": "Historical log of interactive WhatsApp communication logs",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "items": { "type": "array" },
+        "total": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "message", "type", "items", "total", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "System administrator with authority permissions who can access the curator portal",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "registeredAt": { "type": "string", "format": "date-time" },
+        "registeredBy": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "AdminLoginHistory": {
+      "title": "AdminLoginHistory",
+      "description": "Log of system administrator logins and user-agent environments",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "userAgent": { "type": "string" },
+        "ipPlaceholder": { "type": "string" }
+      },
+      "required": ["email", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/collections/{collectionId}": {
+      "schema": "Collection",
+      "description": "Exquisite luxury collections"
+    },
+    "/hotspots/{hotspotId}": {
+      "schema": "Hotspot",
+      "description": "Exquisite individual items"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Concierge orders and requests"
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": "Order",
+      "description": "User-specific sub-collection of orders and purchase history"
+    },
+    "/admin/dashboard/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Global administrator billing and purchase records dashboard"
+    },
+    "/newsletter/{subscriberId}": {
+      "schema": "Newsletter",
+      "description": "Subscribers list"
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "Global settings and background adjustments"
+    },
+    "/wishlists/{userId}": {
+      "schema": "Wishlist",
+      "description": "User specific wishlisted product IDs"
+    },
+    "/profiles/{userId}": {
+      "schema": "Profile",
+      "description": "User custom delivery coordinates and sizing files"
+    },
+    "/whatsapp_logs/{logId}": {
+      "schema": "WhatsAppLog",
+      "description": "Logs of user WhatsApp click checkouts and custom dispatches"
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Administrators whitelisted to access the Maison workspace panel"
+    },
+    "/admin_login_history/{historyId}": {
+      "schema": "AdminLoginHistory",
+      "description": "Administrative sign-on and audit login logs"
+    }
+  }
+}
